@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>pdf的使用</title>
+    <style>
+      .imgSrc{
+        width: 700px;
+      }
+      .container{
+        width: 600px;
+      }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="pop"></div>
+</div>
+<div>
+  <img class="imgSrc" src="" alt="">
+</div>
+<div class="selectDemo">
+  <div class="selectBox">
+      <label class="selectBtn">
+          请选择图片或者pdf
+          <input type="file" multiple accept="image/*, .pdf" class="selectIpt"/>
+      </label>
+  </div>
+  <div class="previewBox">
+      <ul class="previewList"></ul>
+  </div>
+</div>
+<script src="jquery-2.1.4.js"></script>
+<script src="pdf.js"></script>
+<script src="pdf.worker.js"></script>
+<script>
+    var $$ = (el) => document.querySelector(el);
+    $$('.selectIpt').addEventListener('change', handleFiles);
+    function handleFiles () {
+        const files = this.files;
+        for (let i = 0, len = files.length; i < len; i ++) {
+            handleImageFile(files[i]);
+        }
+    }
+    function handleImageFile (file) {
+        // 使用FileReader来处理
+        const fileType = file.type;
+        if (!fileType) {
+            return;
+        }
+        const reader = new FileReader ();
+        reader.addEventListener ('load', (e) => {
+            let imgUrl = e.target.result;
+            if (/^image/.test(fileType)) {
+            $('.imgSrc').attr('src',imgUrl)
+            }
+            if (fileType === 'application/pdf') {
+            let url = imgUrl.split('base64,')[1]
+            showPdfFile(url,'.pop','.container')
+            }
+        });
+        reader.readAsDataURL(file);
+    }
+
+    /*将请求来的base64编码的pdf文件，替换多余的空格和换行（为了兼容其他浏览器）
+    * 再使用浏览器自带的atob()的方式解析
+    * */
+    /*转化编码格式*/
+    function converData(data) {
+        data = data.replace(/[\n\r]/g, '');
+        var raw = window.atob(data);
+        var rawLength = raw.length;
+        var array = new Uint8Array(new ArrayBuffer(rawLength));
+        for (var i = 0; i < rawLength; i++) {
+            array[i] = raw.charCodeAt(i)
+        }
+        return array
+    }
+ 
+    /*将解码后的值传给PDFJS.getDocument(),交给pdf.js处理*/
+    function showPdfFile(data,eleCanvas,eleWidth) {
+        var url = converData(data);
+        $('.container').show();
+        $(eleCanvas).empty();
+        PDFJS.getDocument(url).then(function getPdfHelloWorld(pdf) {
+            pages = pdf.numPages;
+            for (var i = 1; i <= pdf.numPages; i++) {
+                var id = 'page-id' + i;
+                $(eleCanvas).append('<canvas id="' + id + '"></canvas>');
+                showAll(url,i, id,eleWidth)
+            }
+        })
+    }
+ 
+    function showAll(url,page, id, ele) {
+        PDFJS.getDocument(url).then(function getPdfHelloWorld(pdf) {
+            pdf.getPage(page).then(function getPageHelloWorld(page) {
+                let scale = 1.0, //默认1：1还原pdf的宽高
+                    viewport = page.getViewport(scale),
+                    canvas = document.getElementById(id);
+                    context = canvas.getContext('2d'); 
+                //可以传元素取值设置
+                let width = document.querySelector(ele).offsetWidth
+                //若pdf本身的尺寸大于页面展示的最大宽度，宽度=最大宽度，高度按比例缩放
+                viewport =  viewport.width > width ? page.getViewport(width/viewport.width) : viewport
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                let renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                }
+                page.render(renderContext)
+            })
+        })
+    }
+ 
+</script>
+</body>
+</html>
